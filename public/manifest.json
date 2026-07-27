@@ -1,0 +1,20 @@
+{
+  "name": "us 💜",
+  "short_name": "us",
+  "description": "just us two",
+  "start_url": "./",
+  "scope": "./",
+  "//": "display:standalone is the real fullscreen fix — once this is added to the Android home screen there is no URL bar or tab strip at all, just the app.",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f0fd",
+  "theme_color": "#f7f0fd",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

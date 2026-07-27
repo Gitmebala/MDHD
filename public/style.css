@@ -1,0 +1,540 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Soft lilac theme.
+
+   The join screen is light and pretty. The call screen keeps the video
+   full-bleed with lilac-tinted glass controls floating over it — cute where you
+   can see it, out of the way where the video needs the space.
+
+   Two roles, switched by a class on <body>:
+     .role-guest  — her view: minimal, no numbers
+     .role-host   — your view: the full data meter
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --lilac-50:  #fbf6ff;
+  --lilac-100: #f5ecfd;
+  --lilac-150: #efe2fb;
+  --lilac-200: #e6d4f7;
+  --lilac-300: #d3b6ee;
+  --lilac-400: #bd93e0;
+  --lilac-500: #a06fcc;
+  --pink-200:  #ffdcec;
+  --pink-300:  #f9b8d3;
+  --pink-400:  #ef92b8;
+  --plum:      #4e3560;
+  --plum-soft: #7d6490;
+  --gold:      #f0b95e;
+  --sage:      #8fc79b;
+
+  --ok:   #6bbf8a;
+  --warn: #e0a844;
+  --bad:  #e2778f;
+
+  --glass: rgba(255, 250, 255, 0.76);
+  --glass-line: rgba(160, 111, 204, 0.20);
+
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+
+  --shadow-soft: 0 10px 30px rgba(120, 80, 160, 0.14);
+  --shadow-lift: 0 14px 38px rgba(120, 80, 160, 0.22);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  color: var(--plum);
+  font: 16px/1.5 "Quicksand", "Nunito", -apple-system, "Segoe UI", Roboto, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 15% -5%,  var(--pink-200) 0%, transparent 58%),
+    radial-gradient(900px 620px at 92% 8%,    #e4dcfb 0%, transparent 60%),
+    radial-gradient(900px 700px at 50% 108%,  var(--lilac-200) 0%, transparent 62%),
+    linear-gradient(168deg, var(--lilac-50), var(--lilac-150) 55%, #f3e6fb);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+body { overflow: hidden; }
+
+.hidden { display: none !important; }
+.screen { position: fixed; inset: 0; }
+
+/* Role visibility. Kept in CSS so app.js only ever sets one class. */
+.role-guest .host-only  { display: none !important; }
+.role-host  .guest-only { display: none !important; }
+
+/* ═══════════════════════════ drifting petals ═══════════════════════════════ */
+
+.petals {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.petals svg {
+  position: absolute;
+  top: -12vh;
+  width: 26px;
+  height: 26px;
+  opacity: 0.55;
+  animation: drift linear infinite;
+  will-change: transform;
+}
+
+@keyframes drift {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg); }
+  100% { transform: translate3d(var(--sway, 30px), 112vh, 0) rotate(420deg); }
+}
+
+/* Petals are decoration, not information — remove them if motion is unwelcome. */
+@media (prefers-reduced-motion: reduce) {
+  .petals { display: none; }
+  .spin-bloom { animation: none !important; }
+}
+
+/* Once a call is up, the video is the point — stop animating over it. */
+body.in-call .petals { display: none; }
+
+/* ═══════════════════════════ join screen ═══════════════════════════════════ */
+
+#join-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(20px + var(--safe-t)) 20px calc(20px + var(--safe-b));
+  overflow-y: auto;
+  z-index: 1;
+}
+
+.join-card {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: 8px 26px 26px;
+  text-align: center;
+  background: rgba(255, 252, 255, 0.66);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 30px;
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+}
+
+.bouquet {
+  width: 148px;
+  height: 140px;
+  margin: -6px auto 2px;
+  display: block;
+  filter: drop-shadow(0 8px 16px rgba(150, 100, 190, 0.20));
+  animation: sway 7s ease-in-out infinite;
+  transform-origin: 50% 88%;
+  cursor: pointer;           /* triple-tap toggles host mode */
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50%      { transform: rotate(2.5deg); }
+}
+
+.join-card h1 {
+  margin: 2px 0 3px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--plum);
+}
+
+.tagline {
+  margin: 0 0 20px;
+  font-size: 14.5px;
+  color: var(--plum-soft);
+}
+
+.field { display: block; margin-bottom: 14px; text-align: left; }
+
+.field-label {
+  display: block;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--plum-soft);
+  margin: 0 0 6px 4px;
+}
+
+input[type="text"], select {
+  width: 100%;
+  /* 16px minimum or mobile browsers zoom the page on focus. */
+  font-size: 16px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--plum);
+  padding: 15px 18px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1.5px solid var(--lilac-200);
+  border-radius: 18px;
+  appearance: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+input::placeholder { color: #bda9cc; font-weight: 500; }
+
+input[type="text"]:focus, select:focus {
+  outline: none;
+  border-color: var(--lilac-400);
+  box-shadow: 0 0 0 4px rgba(189, 147, 224, 0.18);
+}
+
+select {
+  text-align: left;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a06fcc' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.primary {
+  width: 100%;
+  min-height: 56px;
+  margin-top: 4px;
+  font-size: 17.5px;
+  font-weight: 700;
+  color: #fff;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #c99ae8, #a878d4 45%, #ef92b8);
+  box-shadow: 0 8px 20px rgba(160, 111, 204, 0.34);
+  transition: transform 0.14s, box-shadow 0.14s, opacity 0.14s;
+}
+.primary:active:not(:disabled) {
+  transform: translateY(2px) scale(0.99);
+  box-shadow: 0 4px 12px rgba(160, 111, 204, 0.3);
+}
+.primary:disabled { opacity: 0.55; cursor: default; }
+
+.status {
+  min-height: 22px;
+  margin: 14px 0 0;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--lilac-500);
+}
+.status.err { color: var(--bad); }
+
+/* The "good girl 💜" moment gets a little bounce so it feels like a reward. */
+.status.sweet {
+  color: var(--pink-400);
+  font-size: 18px;
+  animation: pop 0.5s cubic-bezier(0.34, 1.7, 0.5, 1);
+}
+@keyframes pop {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.install-hint {
+  margin: 16px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a893b8;
+}
+.install-hint strong { color: var(--lilac-500); }
+.install-hint.hidden { display: none; }
+
+/* ═══════════════════════════ call screen ═══════════════════════════════════ */
+
+#call-screen { z-index: 1; }
+
+#remote-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #efe4f8;
+}
+
+#local-video {
+  position: absolute;
+  top: calc(var(--safe-t) + 14px);
+  right: 14px;
+  width: 28vw;
+  max-width: 128px;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 20px;
+  border: 2.5px solid rgba(255, 255, 255, 0.9);
+  background: var(--lilac-200);
+  z-index: 4;
+  box-shadow: var(--shadow-lift);
+  transform: scaleX(-1);          /* mirror the selfie preview only */
+  transition: opacity 0.25s;
+}
+#local-video.rear { transform: none; }
+#local-video.off  { opacity: 0.3; }
+
+/* Host meter sits top-left, so nudge the preview down to clear it. */
+.role-host #local-video { top: calc(var(--safe-t) + 14px); }
+
+.call-status {
+  position: absolute;
+  top: 50%;
+  left: 0; right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 0 30px;
+  z-index: 2;
+  pointer-events: none;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--plum-soft);
+  text-align: center;
+}
+.call-status.hidden { display: none; }
+
+.spin-bloom {
+  width: 54px;
+  height: 54px;
+  animation: bloomspin 3.4s linear infinite;
+  filter: drop-shadow(0 4px 10px rgba(150, 100, 190, 0.22));
+}
+@keyframes bloomspin { to { transform: rotate(360deg); } }
+
+.overlay-btn {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-b) + 120px);
+  transform: translateX(-50%);
+  z-index: 6;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  padding: 14px 24px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #c99ae8, #ef92b8);
+  box-shadow: var(--shadow-lift);
+}
+
+/* Her ornament, where the host's meter would be. */
+.guest-ornament {
+  position: absolute;
+  top: calc(var(--safe-t) + 16px);
+  left: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px 7px 9px;
+  border-radius: 999px;
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--lilac-500);
+  letter-spacing: 0.04em;
+}
+.guest-ornament svg { width: 20px; height: 20px; }
+
+/* ═══════════════════════════ data meter (host) ═════════════════════════════ */
+
+.meter {
+  position: absolute;
+  top: calc(var(--safe-t) + 12px);
+  left: 12px;
+  z-index: 5;
+  width: min(58vw, 248px);
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
+  backdrop-filter: blur(16px) saturate(1.1);
+}
+
+.meter-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 11px 13px;
+  text-align: left;
+}
+
+.headline {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+  white-space: nowrap;
+}
+.headline.warn { color: var(--warn); }
+.headline.bad  { color: var(--bad); }
+
+.codec-chip {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: rgba(160, 111, 204, 0.13);
+  color: var(--lilac-500);
+  white-space: nowrap;
+}
+.codec-chip.av1 { background: rgba(107, 191, 138, 0.18); color: #4d9f6c; }
+
+.chev {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--lilac-400);
+  transition: transform 0.16s;
+}
+.meter-head[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+
+.meter-body { padding: 0 13px 12px; }
+.meter-body.hidden { display: none; }
+
+.meter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.cell { display: flex; flex-direction: column; min-width: 0; }
+.cell .k {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #ab95bd;
+}
+.cell .v {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--plum);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.budget-bar {
+  margin-top: 11px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(160, 111, 204, 0.15);
+  overflow: hidden;
+}
+.budget-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #9ad5b0, var(--ok));
+  transition: width 0.6s linear, background 0.3s;
+}
+.budget-fill.warn { background: linear-gradient(90deg, #f0cd8a, var(--warn)); }
+.budget-fill.bad  { background: linear-gradient(90deg, #f0a8bb, var(--bad)); }
+
+.meter-note {
+  margin-top: 8px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #a893b8;
+}
+
+/* ═══════════════════════════ controls ═════════════════════════════════════ */
+
+.controls {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  z-index: 5;
+  padding: 16px 14px calc(14px + var(--safe-b));
+  background: linear-gradient(to top, rgba(78, 53, 96, 0.34), rgba(78, 53, 96, 0));
+}
+
+.preset-wrap { display: block; max-width: 420px; margin: 0 auto 12px; }
+.preset-wrap select {
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 11px 38px 11px 16px;
+  background-color: var(--glass);
+  border-color: rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.btn-row {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+/* Round, generous, thumb-friendly. 62px comfortably exceeds the 44px minimum
+   touch target with room for a fat-finger miss. */
+.ctl {
+  width: 62px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--glass);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  transition: transform 0.14s, background 0.2s, box-shadow 0.14s;
+}
+.ctl:active { transform: scale(0.92); }
+.ctl .ico { font-size: 24px; line-height: 1; }
+
+/* aria-pressed=true means the feature is OFF (muted / camera down). */
+.ctl[aria-pressed="true"] {
+  background: linear-gradient(135deg, #f6c3d5, #ef92b8);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+.ctl[aria-pressed="true"] .ico { filter: grayscale(1) brightness(1.7); }
+
+.ctl.danger {
+  background: linear-gradient(135deg, #f4a9bd, #e2778f);
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 20px rgba(226, 119, 143, 0.36);
+}
+
+/* Landscape: reclaim vertical space for the video. */
+@media (max-height: 460px) {
+  .ctl { width: 52px; height: 52px; }
+  .ctl .ico { font-size: 20px; }
+  .controls { padding-top: 8px; }
+  .preset-wrap { margin-bottom: 8px; }
+  #local-video { width: 19vw; }
+  .meter { width: min(46vw, 226px); }
+  .bouquet { width: 96px; height: 92px; }
+  .join-card { padding-top: 4px; }
+}
+
+/* Short join screens: shrink the bouquet before the button falls off-screen. */
+@media (max-height: 700px) and (orientation: portrait) {
+  .bouquet { width: 112px; height: 106px; }
+  .join-card h1 { font-size: 26px; }
+  .tagline { margin-bottom: 16px; }
+}

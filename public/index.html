@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <!-- viewport-fit=cover + safe-area padding keeps controls clear of the Android
+       gesture bar. user-scalable=no stops accidental pinch-zoom mid-call. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f0fd" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <title>us 💜</title>
+  <!-- The ?v= stamp is a one-time escape from a bad cache header shipped in an
+       earlier version (max-age=1h, so browsers would not even revalidate).
+       The server now sends Cache-Control: no-cache, so ordinary edits take
+       effect on the next load and this number never needs bumping again. -->
+  <link rel="stylesheet" href="style.css?v=2" />
+</head>
+<body class="role-guest">
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     Reusable flower art. Drawn as SVG symbols rather than emoji so they stay
+     crisp at any size and can be recoloured with `color`.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="g-lilac" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eeddfa"/><stop offset="100%" stop-color="#c49ce4"/>
+    </linearGradient>
+    <linearGradient id="g-pink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe1ee"/><stop offset="100%" stop-color="#f4a3c6"/>
+    </linearGradient>
+    <linearGradient id="g-cream" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fffaf0"/><stop offset="100%" stop-color="#ffdca8"/>
+    </linearGradient>
+    <linearGradient id="g-leaf" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cfe8cf"/><stop offset="100%" stop-color="#8fc79b"/>
+    </linearGradient>
+
+    <!-- five-petal blossom -->
+    <symbol id="s-bloom" viewBox="-50 -50 100 100">
+      <g fill="currentColor">
+        <ellipse cx="0" cy="-26" rx="16" ry="24"/>
+        <ellipse cx="0" cy="-26" rx="16" ry="24" transform="rotate(72)"/>
+        <ellipse cx="0" cy="-26" rx="16" ry="24" transform="rotate(144)"/>
+        <ellipse cx="0" cy="-26" rx="16" ry="24" transform="rotate(216)"/>
+        <ellipse cx="0" cy="-26" rx="16" ry="24" transform="rotate(288)"/>
+      </g>
+      <circle r="12" fill="url(#g-cream)"/>
+      <circle cx="-3" cy="-3" r="2.6" fill="#fff8e4"/>
+    </symbol>
+
+    <!-- tiny four-petal sprig flower -->
+    <symbol id="s-tiny" viewBox="-50 -50 100 100">
+      <g fill="currentColor">
+        <circle cx="0" cy="-22" r="15"/>
+        <circle cx="22" cy="0" r="15"/>
+        <circle cx="0" cy="22" r="15"/>
+        <circle cx="-22" cy="0" r="15"/>
+      </g>
+      <circle r="9" fill="url(#g-cream)"/>
+    </symbol>
+
+    <!-- single petal, used for the drifting confetti -->
+    <symbol id="s-petal" viewBox="-50 -50 100 100">
+      <path d="M0-34C17-24 22-6 0 34C-22-6-17-24 0-34Z" fill="currentColor"/>
+    </symbol>
+
+    <!-- a wrapped bouquet -->
+    <symbol id="s-bouquet" viewBox="0 0 200 190">
+      <!-- stems -->
+      <g stroke="#9ac9a4" stroke-width="4.5" stroke-linecap="round" fill="none">
+        <path d="M100 168 C96 130 78 104 62 84"/>
+        <path d="M100 168 C100 128 100 100 100 74"/>
+        <path d="M100 168 C104 130 122 104 138 84"/>
+        <path d="M100 168 C98 140 86 126 74 118"/>
+        <path d="M100 168 C102 140 114 126 126 118"/>
+      </g>
+      <!-- leaves -->
+      <g fill="url(#g-leaf)">
+        <ellipse cx="76" cy="132" rx="8" ry="15" transform="rotate(-34 76 132)"/>
+        <ellipse cx="124" cy="132" rx="8" ry="15" transform="rotate(34 124 132)"/>
+        <ellipse cx="88" cy="112" rx="7" ry="13" transform="rotate(-20 88 112)"/>
+      </g>
+      <!-- blooms -->
+      <g color="#c9a0e6"><use href="#s-bloom" x="34" y="56" width="56" height="56"/></g>
+      <g color="#f4a3c6"><use href="#s-bloom" x="110" y="56" width="56" height="56"/></g>
+      <g color="#dcc0f0"><use href="#s-bloom" x="72" y="42" width="56" height="56"/></g>
+      <g color="#f7c9dd"><use href="#s-tiny"  x="52" y="94" width="34" height="34"/></g>
+      <g color="#cfa8ea"><use href="#s-tiny"  x="114" y="94" width="34" height="34"/></g>
+      <!-- paper wrap -->
+      <path d="M100 172 L64 138 Q100 152 136 138 Z" fill="url(#g-pink)" opacity="0.85"/>
+      <path d="M100 172 L74 146 Q100 157 126 146 Z" fill="#fff" opacity="0.35"/>
+      <!-- ribbon -->
+      <circle cx="100" cy="160" r="6" fill="#e9829f"/>
+      <path d="M100 160 q-13 -6 -16 3 q9 6 16 -3Z" fill="#f0a0b8"/>
+      <path d="M100 160 q13 -6 16 3 q-9 6 -16 -3Z" fill="#f0a0b8"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- drifting petals; purely decorative -->
+<div class="petals" aria-hidden="true"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     JOIN SCREEN — also the mandatory user gesture that unlocks audio autoplay
+     and lets us request fullscreen + wake lock.
+     ══════════════════════════════════════════════════════════════════════════ -->
+<section id="join-screen" class="screen">
+  <div class="join-card">
+
+    <svg class="bouquet" id="bouquet" viewBox="0 0 200 190" aria-hidden="true">
+      <use href="#s-bouquet" width="200" height="190"/>
+    </svg>
+
+    <h1 id="join-title">hi baby</h1>
+    <p class="tagline" id="join-tagline">just us two</p>
+
+    <label class="field">
+      <input id="room-input" type="text" inputmode="text" autocomplete="off"
+             autocapitalize="none" spellcheck="false" />
+    </label>
+
+    <!-- host only -->
+    <label class="field host-only">
+      <span class="field-label">data budget</span>
+      <select id="join-preset"></select>
+    </label>
+
+    <button id="join-btn" class="primary">
+      <span id="join-btn-label">call him</span>
+    </button>
+
+    <p id="join-status" class="status" role="status" aria-live="polite"></p>
+
+    <p class="install-hint" id="install-hint">
+      tip: tap ⋮ then <strong>Add to Home screen</strong> — then it opens with no
+      browser bar at all 💜
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     CALL SCREEN
+     ══════════════════════════════════════════════════════════════════════════ -->
+<section id="call-screen" class="screen hidden">
+
+  <!-- playsinline is REQUIRED on mobile or the video jumps to the native
+       fullscreen player and we lose our own UI. -->
+  <video id="remote-video" playsinline autoplay></video>
+
+  <!-- Local preview: its own capture stream, so it costs zero network bytes. -->
+  <video id="local-video" playsinline autoplay muted></video>
+
+  <button id="unmute-overlay" class="overlay-btn hidden">tap to hear me 💜</button>
+
+  <div id="call-status" class="call-status">
+    <svg class="spin-bloom" viewBox="-50 -50 100 100" aria-hidden="true">
+      <g color="#d9b8f0"><use href="#s-bloom" x="-50" y="-50" width="100" height="100"/></g>
+    </svg>
+    <span id="call-status-text">connecting you two…</span>
+  </div>
+
+  <!-- ── Data meter: HOST ONLY, hidden for her by the role-guest body class ── -->
+  <div id="meter" class="meter host-only">
+    <button id="meter-toggle" class="meter-head" aria-expanded="true">
+      <span id="meter-headline" class="headline">— MB/hr</span>
+      <span id="meter-codec" class="codec-chip">—</span>
+      <span class="chev">▾</span>
+    </button>
+
+    <div id="meter-body" class="meter-body">
+      <div class="meter-grid">
+        <div class="cell"><span class="k">used</span><span class="v" id="m-total">0.0 MB</span></div>
+        <div class="cell"><span class="k">call avg</span><span class="v" id="m-avg">— MB/hr</span></div>
+        <div class="cell"><span class="k">upload</span><span class="v" id="m-up">— kbps</span></div>
+        <div class="cell"><span class="k">download</span><span class="v" id="m-down">— kbps</span></div>
+        <div class="cell"><span class="k">sending</span><span class="v" id="m-res">—</span></div>
+        <div class="cell"><span class="k">video cap</span><span class="v" id="m-cap">— kbps</span></div>
+        <div class="cell"><span class="k">audio</span><span class="v" id="m-audio">—</span></div>
+        <div class="cell"><span class="k">loss</span><span class="v" id="m-loss">—</span></div>
+      </div>
+      <div class="budget-bar"><div id="budget-fill" class="budget-fill"></div></div>
+      <div class="meter-note" id="m-note">—</div>
+    </div>
+  </div>
+
+  <!-- Her view gets one tiny ornament where the meter would be. -->
+  <div class="guest-ornament guest-only" aria-hidden="true">
+    <svg viewBox="-50 -50 100 100"><g color="#e4c9f5"><use href="#s-tiny" x="-50" y="-50" width="100" height="100"/></g></svg>
+    <span>us</span>
+  </div>
+
+  <!-- ── Controls ─────────────────────────────────────────────────────────── -->
+  <div class="controls">
+    <label class="preset-wrap host-only">
+      <select id="preset-select" aria-label="data budget"></select>
+    </label>
+
+    <div class="btn-row">
+      <button id="btn-mic"  class="ctl" aria-label="mute"><span class="ico">🎙️</span></button>
+      <button id="btn-cam"  class="ctl" aria-label="camera"><span class="ico">📹</span></button>
+      <button id="btn-flip" class="ctl" aria-label="flip camera"><span class="ico">🔄</span></button>
+      <button id="btn-end"  class="ctl danger" aria-label="end call"><span class="ico">💔</span></button>
+    </div>
+  </div>
+</section>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="sdp-tuner.js?v=2"></script>
+<script src="governor.js?v=2"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>

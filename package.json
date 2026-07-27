@@ -1,0 +1,21 @@
+{
+  "name": "mdhd",
+  "version": "1.0.0",
+  "description": "Low-bandwidth 2-person WebRTC video calling. AV1-first, ~50 kbps video, live data meter.",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "license": "MIT",
+  "private": true
+}
