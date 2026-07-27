@@ -321,3 +321,5 @@ in [`public/app.js`](public/app.js) and drop a preset to compensate.
   congestion-probe padding and does not transfer. See the padding section.
 - AV1 between two real phones, and the CPU cost of encoding it on yours.
 - Screen-lock recovery and Wi-Fi→4G ICE restart on real hardware.
+
+<!-- auto-deploy verification 2026-07-27T16:33:53Z -->
