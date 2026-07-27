@@ -159,9 +159,9 @@ test('b=AS bandwidth ceilings are set on both media sections', () => {
   const out = tuneSdpForLowBandwidth(CHROME_OFFER, CFG);
   const { audio, video } = sections(out);
 
-  // Video: governor max (42) + 25% headroom = 52.
-  assert.ok(video.lines.includes('b=AS:53') || video.lines.includes('b=AS:52'),
-    `expected a video b=AS near 52, got ${video.lines.filter(l => l.startsWith('b='))}`);
+  // Video: governor max (42) + 50% headroom = 63 (room for RTX retransmission).
+  assert.ok(video.lines.includes('b=AS:63'),
+    `expected video b=AS:63, got ${video.lines.filter(l => l.startsWith('b='))}`);
   // Audio: max(24, 12*2) = 24.
   assert.ok(audio.lines.includes('b=AS:24'),
     `expected audio b=AS:24, got ${audio.lines.filter(l => l.startsWith('b='))}`);
@@ -183,11 +183,11 @@ test('b=AS is placed after c= and before the first a= line', () => {
 
 test('b=AS tracks the preset rather than being hardcoded', () => {
   const cheap = tuneSdpForLowBandwidth(CHROME_OFFER,
-    { audioKbps: 10, audioPtimeMs: 60, videoKbps: { min: 8, max: 28 } });
+    { audioKbps: 10, audioPtimeMs: 60, videoKbps: { min: 10, max: 34 } });
   const rich = tuneSdpForLowBandwidth(CHROME_OFFER,
-    { audioKbps: 24, audioPtimeMs: 20, videoKbps: { min: 24, max: 160 } });
-  assert.ok(rich.includes('b=AS:200'), 'sharp preset video ceiling is 160*1.25');
-  assert.ok(cheap.includes('b=AS:35'), 'featherweight video ceiling is 28*1.25');
+    { audioKbps: 24, audioPtimeMs: 20, videoKbps: { min: 28, max: 170 } });
+  assert.ok(rich.includes('b=AS:255'), 'sharp preset video ceiling is 170*1.5');
+  assert.ok(cheap.includes('b=AS:51'), 'featherweight video ceiling is 34*1.5');
   assert.ok(rich.includes('b=AS:48'), 'sharp audio ceiling is 24*2');
 });
 

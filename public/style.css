@@ -30,8 +30,13 @@
   --warn: #e0a844;
   --bad:  #e2778f;
 
-  --glass: rgba(255, 250, 255, 0.76);
-  --glass-line: rgba(160, 111, 204, 0.20);
+  /* True glass, not a solid pastel card: translucent gradient fill (lighter at
+     the top-left where light would catch it), a bright thin edge, and an inset
+     highlight/shadow pair that reads as a beveled edge rather than a flat tile. */
+  --glass-fill: linear-gradient(160deg, rgba(255, 255, 255, 0.50), rgba(255, 255, 255, 0.14));
+  --glass-fill-strong: linear-gradient(160deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.22));
+  --glass-edge: rgba(255, 255, 255, 0.55);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -10px 20px rgba(160, 111, 204, 0.10);
 
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
@@ -118,12 +123,12 @@ body.in-call .petals { display: none; }
   max-width: 360px;
   padding: 8px 26px 26px;
   text-align: center;
-  background: rgba(255, 252, 255, 0.66);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: var(--glass-fill-strong);
+  border: 1px solid var(--glass-edge);
   border-radius: 30px;
-  box-shadow: var(--shadow-soft);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
-  backdrop-filter: blur(16px) saturate(1.1);
+  box-shadow: var(--shadow-soft), var(--glass-inset);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  backdrop-filter: blur(22px) saturate(170%);
 }
 
 .bouquet {
@@ -215,14 +220,18 @@ button {
   font-size: 17.5px;
   font-weight: 700;
   color: #fff;
+  text-shadow: 0 1px 3px rgba(120, 60, 140, 0.4);
   border-radius: 20px;
-  background: linear-gradient(135deg, #c99ae8, #a878d4 45%, #ef92b8);
-  box-shadow: 0 8px 20px rgba(160, 111, 204, 0.34);
+  background: linear-gradient(135deg, rgba(201, 154, 232, 0.78), rgba(168, 120, 212, 0.72) 45%, rgba(239, 146, 184, 0.78));
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 8px 20px rgba(160, 111, 204, 0.30), var(--glass-inset);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
   transition: transform 0.14s, box-shadow 0.14s, opacity 0.14s;
 }
 .primary:active:not(:disabled) {
   transform: translateY(2px) scale(0.99);
-  box-shadow: 0 4px 12px rgba(160, 111, 204, 0.3);
+  box-shadow: 0 4px 12px rgba(160, 111, 204, 0.26);
 }
 .primary:disabled { opacity: 0.55; cursor: default; }
 
@@ -235,7 +244,7 @@ button {
 }
 .status.err { color: var(--bad); }
 
-/* The "good girl 💜" moment gets a little bounce so it feels like a reward. */
+/* The "good girl 💗" moment gets a little bounce so it feels like a reward. */
 .status.sweet {
   color: var(--pink-400);
   font-size: 18px;
@@ -247,14 +256,38 @@ button {
   100% { transform: scale(1); opacity: 1; }
 }
 
-.install-hint {
-  margin: 16px 0 0;
+.install-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  margin-top: 14px;
+  padding: 11px 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--lilac-500);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(120, 80, 160, 0.12), var(--glass-inset);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  transition: transform 0.14s, opacity 0.14s;
+}
+.install-btn:active { transform: scale(0.97); }
+.install-btn .ico { font-size: 16px; }
+.install-btn.hidden { display: none; }
+
+.install-fallback {
+  margin: 12px 0 0;
   font-size: 12px;
   line-height: 1.5;
   color: #a893b8;
 }
-.install-hint strong { color: var(--lilac-500); }
-.install-hint.hidden { display: none; }
+.install-fallback strong { color: var(--lilac-500); }
+.install-fallback.hidden { display: none; }
 
 /* ═══════════════════════════ call screen ═══════════════════════════════════ */
 
@@ -283,10 +316,19 @@ button {
   z-index: 4;
   box-shadow: var(--shadow-lift);
   transform: scaleX(-1);          /* mirror the selfie preview only */
-  transition: opacity 0.25s;
+  transition: opacity 0.25s, box-shadow 0.15s;
+  /* Draggable: see setupDraggablePreview() in app.js. touch-action:none stops
+     the browser from treating the drag as a page scroll/gesture. */
+  touch-action: none;
+  cursor: grab;
 }
 #local-video.rear { transform: none; }
 #local-video.off  { opacity: 0.3; }
+#local-video.dragging {
+  cursor: grabbing;
+  box-shadow: 0 18px 40px rgba(120, 80, 160, 0.32);
+  transition: none;               /* track the finger with zero lag */
+}
 
 /* Host meter sits top-left, so nudge the preview down to clear it. */
 .role-host #local-video { top: calc(var(--safe-t) + 14px); }
@@ -327,10 +369,17 @@ button {
   font-size: 15px;
   font-weight: 700;
   color: #fff;
+  text-shadow: 0 1px 3px rgba(120, 60, 140, 0.4);
   padding: 14px 24px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #c99ae8, #ef92b8);
-  box-shadow: var(--shadow-lift);
+  /* Kept fairly opaque (0.78) rather than fully translucent: this sits over
+     whatever the video happens to show, so legibility beats purity of the
+     glass effect here. */
+  background: linear-gradient(135deg, rgba(201, 154, 232, 0.82), rgba(239, 146, 184, 0.82));
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-lift), var(--glass-inset);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
 }
 
 /* Her ornament, where the host's meter would be. */
@@ -344,11 +393,11 @@ button {
   gap: 6px;
   padding: 7px 14px 7px 9px;
   border-radius: 999px;
-  background: var(--glass);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: var(--shadow-soft);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-soft), var(--glass-inset);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
   font-size: 13px;
   font-weight: 700;
   color: var(--lilac-500);
@@ -366,11 +415,11 @@ button {
   width: min(58vw, 248px);
   border-radius: 20px;
   overflow: hidden;
-  background: var(--glass);
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: var(--shadow-soft);
-  -webkit-backdrop-filter: blur(16px) saturate(1.1);
-  backdrop-filter: blur(16px) saturate(1.1);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-soft), var(--glass-inset);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  backdrop-filter: blur(18px) saturate(170%);
 }
 
 .meter-head {
@@ -473,11 +522,19 @@ button {
   font-size: 13.5px;
   font-weight: 600;
   padding: 11px 38px 11px 16px;
-  background-color: var(--glass);
-  border-color: rgba(255, 255, 255, 0.8);
-  box-shadow: var(--shadow-soft);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  /* Redeclares the caret arrow alongside the glass gradient (rather than just
+     overriding background-color like most overrides here) because a gradient
+     needs background-image, and background-image is a full replacement, not a
+     layer added on top of the base select rule's arrow icon. */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a06fcc' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"),
+    var(--glass-fill);
+  background-repeat: no-repeat, no-repeat;
+  background-position: right 16px center, 0 0;
+  border-color: var(--glass-edge);
+  box-shadow: var(--shadow-soft), var(--glass-inset);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
 }
 
 .btn-row {
@@ -497,11 +554,11 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--glass);
-  border: 1.5px solid rgba(255, 255, 255, 0.85);
-  box-shadow: var(--shadow-soft);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  background: var(--glass-fill);
+  border: 1.5px solid var(--glass-edge);
+  box-shadow: var(--shadow-soft), var(--glass-inset);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  backdrop-filter: blur(16px) saturate(160%);
   transition: transform 0.14s, background 0.2s, box-shadow 0.14s;
 }
 .ctl:active { transform: scale(0.92); }
@@ -509,15 +566,15 @@ button {
 
 /* aria-pressed=true means the feature is OFF (muted / camera down). */
 .ctl[aria-pressed="true"] {
-  background: linear-gradient(135deg, #f6c3d5, #ef92b8);
-  border-color: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(135deg, rgba(246, 195, 213, 0.75), rgba(239, 146, 184, 0.75));
+  border-color: var(--glass-edge);
 }
 .ctl[aria-pressed="true"] .ico { filter: grayscale(1) brightness(1.7); }
 
 .ctl.danger {
-  background: linear-gradient(135deg, #f4a9bd, #e2778f);
-  border-color: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 8px 20px rgba(226, 119, 143, 0.36);
+  background: linear-gradient(135deg, rgba(244, 169, 189, 0.75), rgba(226, 119, 143, 0.75));
+  border-color: var(--glass-edge);
+  box-shadow: 0 8px 20px rgba(226, 119, 143, 0.32), var(--glass-inset);
 }
 
 /* Landscape: reclaim vertical space for the video. */

@@ -59,29 +59,33 @@ const PRESETS = {
     budgetMbPerHour: 20,
     shortSide: 360, fps: 12,
     audioKbps: 10, audioPtimeMs: 60,
-    videoKbps: { min: 8, max: 28 },
+    videoKbps: { min: 10, max: 34 },
   },
   saver: {
-    // DEFAULT — the target from the brief, honestly measured.
+    // DEFAULT. Ranges widened from the original 10-42 after real-call feedback
+    // that AV1 at the bottom of that range looked blurry/blocky and laggy on a
+    // real mobile link. The governor still closes the loop on the SAME
+    // budgetMbPerHour average over the call — this only widens how far it is
+    // allowed to swing above the floor, not the hourly target.
     label: 'Saver — 30 MB/hr (480p15)',
     budgetMbPerHour: 30,
     shortSide: 480, fps: 15,
     audioKbps: 12, audioPtimeMs: 60,
-    videoKbps: { min: 10, max: 42 },
+    videoKbps: { min: 14, max: 55 },
   },
   balanced: {
     label: 'Balanced — 45 MB/hr (480p15)',
     budgetMbPerHour: 45,
     shortSide: 480, fps: 15,
     audioKbps: 16, audioPtimeMs: 40,
-    videoKbps: { min: 14, max: 70 },
+    videoKbps: { min: 18, max: 85 },
   },
   sharp: {
     label: 'Sharp — 90 MB/hr (480p15)',
     budgetMbPerHour: 90,
     shortSide: 480, fps: 15,
     audioKbps: 24, audioPtimeMs: 20,
-    videoKbps: { min: 24, max: 160 },
+    videoKbps: { min: 28, max: 170 },
   },
 };
 
@@ -107,7 +111,8 @@ const el = {
   joinStatus: $('join-status'),
   joinTitle: $('join-title'),
   joinTagline: $('join-tagline'),
-  installHint: $('install-hint'),
+  installBtn: $('install-btn'),
+  installFallback: $('install-fallback'),
   bouquet: $('bouquet'),
   petals: document.querySelector('.petals'),
 
@@ -164,44 +169,50 @@ function detectRole() {
 }
 
 /**
+ * Pet names, used in place of generic "him"/"her" pronouns so each side feels
+ * written for the two of you specifically rather than a generic template.
+ */
+const PET_NAME = { host: 'Moonstone', guest: 'Sunstone' };
+
+/**
  * All user-facing text, per role. Hers is warm and short; yours is plain, so
  * the meter stays readable at a glance.
  */
 const COPY = {
   guest: {
-    title: 'hi baby',
-    tagline: 'just us two 💜',
+    title: 'Heyy babyy',
+    tagline: 'just us two 💗',
     roomPlaceholder: 'type the room name here babyy',
-    joinButton: 'call him',
-    askingMedia: 'one sec baby…',
+    joinButton: `call ${PET_NAME.guest}`,
+    askingMedia: 'one sec babyy…',
     joining: 'putting you through…',
-    accepted: 'good girl 💜',
-    waitingForPeer: 'waiting for him to join, baby…',
+    accepted: 'good girl 💗',
+    waitingForPeer: `waiting for ${PET_NAME.guest} to join, babyy…`,
     connecting: 'connecting you two…',
-    reconnecting: 'hold on baby, one sec…',
-    reconnectFailed: 'lost him 💔 tap the heart and try again',
-    peerLeft: 'he hung up 💜 waiting for him…',
-    roomFull: "hmm, that room's busy baby — check the name?",
-    permissionDenied: 'let me see you baby — allow the camera 💜',
-    noDevice: "can't find your camera, baby",
-    notSecure: 'this link needs to start with https, baby',
-    unsupported: "this browser won't work baby — try Chrome",
-    needRoom: 'type the room name first, baby 💜',
-    ended: (mb, mins) => 'miss you already 💜',
+    reconnecting: 'hold on babyy, one sec…',
+    reconnectFailed: `lost ${PET_NAME.guest} 💔 tap the heart to try again`,
+    peerLeft: `${PET_NAME.guest} went quiet for a sec 💗 hang tight, babyy…`,
+    roomFull: "hmm, that room's busy babyy — check the name?",
+    permissionDenied: 'let me see you babyy — allow the camera 💗',
+    noDevice: "can't find your camera, babyy",
+    notSecure: 'this link needs to start with https, babyy',
+    unsupported: "this browser won't work babyy — try Chrome",
+    needRoom: 'type the room name first, babyy 💗',
+    ended: (mb, mins) => `miss you already, ${PET_NAME.guest} 💗`,
   },
   host: {
     title: 'us',
     tagline: 'private call · budget enforced',
     roomPlaceholder: 'room name',
-    joinButton: 'start call',
+    joinButton: `call ${PET_NAME.host}`,
     askingMedia: 'requesting camera and mic…',
     joining: 'connecting to signaling…',
     accepted: 'joined',
-    waitingForPeer: 'waiting for her to join…',
+    waitingForPeer: `waiting for ${PET_NAME.host} to join…`,
     connecting: 'connecting…',
     reconnecting: 'reconnecting…',
     reconnectFailed: 'could not reconnect — end and rejoin',
-    peerLeft: 'she hung up — waiting for her to rejoin…',
+    peerLeft: `lost ${PET_NAME.host} — waiting for her to rejoin…`,
     roomFull: 'that room already has 2 people.',
     permissionDenied: 'camera/mic permission denied.',
     noDevice: 'no camera or microphone found.',
@@ -224,6 +235,7 @@ const state = {
   localStream: null,
   room: null,
   wakeLock: null,
+  deferredInstallPrompt: null,
 
   // Perfect-negotiation bookkeeping (see negotiation section below).
   polite: false,
@@ -327,12 +339,15 @@ function preferVideoCodecs(transceiver) {
 const tuneSdp = (sdp) =>
   SdpTuner.tuneSdpForLowBandwidth(
     sdp,
-    // RTX is dropped by DEFAULT because it is the vehicle Chrome uses for
-    // congestion-probe padding, and measured back-to-back it cut total upload
-    // from 97 kbps to 37 kbps on identical content. Add ?rtx=1 to restore
-    // retransmission if unrepaired packet loss hurts the picture more than the
-    // data saving is worth. See sdp-tuner.js.
-    { ...preset(), dropRtx: !new URLSearchParams(location.search).has('rtx') },
+    // RTX (retransmission) is KEPT by default. It was dropped by default in an
+    // earlier build based on a loopback measurement (127.0.0.1 has ~0 real
+    // packet loss, so RTX there was only carrying congestion-probe padding).
+    // On a real mobile network packets actually get lost, and without RTX a
+    // lost video packet is never repaired — it smears and blocks until the next
+    // keyframe, which is exactly the "blurry, bad, laggy" picture reported on
+    // a real call. Add ?nortx=1 to go back to the more aggressive (and
+    // riskier) data-saving mode. See sdp-tuner.js.
+    { ...preset(), dropRtx: new URLSearchParams(location.search).has('nortx') },
     (msg) => console.log(msg)
   );
 
@@ -1083,6 +1098,117 @@ function spawnPetals(count = 11) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   6c. ADD TO HOME SCREEN — a real button, not just instructions
+
+   Android Chrome fires 'beforeinstallprompt' when the page qualifies for
+   installation. Capturing it lets us trigger the native install dialog from
+   our own button instead of waiting for Chrome's own menu item. iOS Safari and
+   some desktop browsers never fire that event — for those, tapping the button
+   falls back to on-screen manual instructions instead of doing nothing.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function setupInstallPrompt() {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    state.deferredInstallPrompt = e;
+    console.log('[install] native prompt available');
+  });
+
+  window.addEventListener('appinstalled', () => {
+    state.deferredInstallPrompt = null;
+    el.installBtn.classList.add('hidden');
+    el.installFallback.classList.add('hidden');
+  });
+
+  el.installBtn.addEventListener('click', async () => {
+    if (state.deferredInstallPrompt) {
+      state.deferredInstallPrompt.prompt();
+      const { outcome } = await state.deferredInstallPrompt.userChoice;
+      console.log('[install] user choice:', outcome);
+      state.deferredInstallPrompt = null;
+      if (outcome === 'accepted') el.installBtn.classList.add('hidden');
+    } else {
+      // No native prompt on this browser (iOS Safari, or Chrome decided we
+      // don't qualify yet) — show her how to do it by hand instead of the
+      // button silently doing nothing.
+      el.installFallback.classList.toggle('hidden');
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6d. DRAGGABLE LOCAL PREVIEW
+
+   Lets you drag your own preview anywhere on screen — including mostly off any
+   edge, so it is out of the way entirely — then drag it back. A sliver
+   (MIN_VISIBLE px) always stays on-screen so it can never be dragged somewhere
+   ungrabbable. Position resets to the default corner on reload; nothing is
+   persisted, since a call is short and the default corner is a fine start
+   every time.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function setupDraggablePreview() {
+  const node = el.localVideo;
+  const MIN_VISIBLE = 28;
+  let dragging = false;
+  let startX = 0, startY = 0, baseLeft = 0, baseTop = 0;
+
+  function clamp(left, top) {
+    const w = node.offsetWidth || 120, h = node.offsetHeight || 160;
+    return {
+      left: Math.min(window.innerWidth - MIN_VISIBLE, Math.max(-(w - MIN_VISIBLE), left)),
+      top: Math.min(window.innerHeight - MIN_VISIBLE, Math.max(-(h - MIN_VISIBLE), top)),
+    };
+  }
+
+  // The CSS default positions it with top/right so it looks right with no JS.
+  // On the first drag we freeze that computed position into explicit
+  // left/top pixels so it can be moved freely without fighting the stylesheet.
+  function switchToExplicitPosition() {
+    if (node.style.left) return;
+    const r = node.getBoundingClientRect();
+    node.style.left = `${r.left}px`;
+    node.style.top = `${r.top}px`;
+    node.style.right = 'auto';
+  }
+
+  node.addEventListener('pointerdown', (e) => {
+    switchToExplicitPosition();
+    dragging = true;
+    node.setPointerCapture(e.pointerId);
+    node.classList.add('dragging');
+    startX = e.clientX;
+    startY = e.clientY;
+    baseLeft = parseFloat(node.style.left) || 0;
+    baseTop = parseFloat(node.style.top) || 0;
+  });
+
+  node.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const { left, top } = clamp(baseLeft + (e.clientX - startX), baseTop + (e.clientY - startY));
+    node.style.left = `${left}px`;
+    node.style.top = `${top}px`;
+  });
+
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    node.classList.remove('dragging');
+    try { node.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+  };
+  node.addEventListener('pointerup', endDrag);
+  node.addEventListener('pointercancel', endDrag);
+
+  // Keep it reachable if the viewport changes (rotation, keyboard, etc).
+  window.addEventListener('resize', () => {
+    if (!node.style.left) return;
+    const { left, top } = clamp(parseFloat(node.style.left), parseFloat(node.style.top));
+    node.style.left = `${left}px`;
+    node.style.top = `${top}px`;
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    7. MOBILE REALITIES — autoplay, backgrounding, screen lock
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1468,11 +1594,11 @@ function applyRole(role) {
   el.roomInput.placeholder = T.roomPlaceholder;
   el.joinBtnLabel.textContent = T.joinButton;
 
-  // The install tip is for her; you already know how to add a home-screen icon.
-  // It is also pointless once the app IS installed and running standalone.
+  // The install button is for her; you already know how to add a home-screen
+  // icon. It is also pointless once the app IS installed and running standalone.
   const standalone = window.matchMedia('(display-mode: standalone)').matches
     || window.navigator.standalone === true;
-  el.installHint.classList.toggle('hidden', role === 'host' || standalone);
+  el.installBtn.classList.toggle('hidden', role === 'host' || standalone);
 
   console.log(`[boot] role = ${role}`);
 }
@@ -1494,6 +1620,8 @@ function applyRole(role) {
 
   populatePresetSelects();
   spawnPetals();
+  setupInstallPrompt();
+  setupDraggablePreview();
 
   const params = new URLSearchParams(location.search);
   el.roomInput.value = params.get('room') || '';

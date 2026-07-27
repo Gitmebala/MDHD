@@ -9,7 +9,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <title>us 💜</title>
+  <title>us 💗</title>
   <!-- The ?v= stamp is a one-time escape from a bad cache header shipped in an
        earlier version (max-age=1h, so browsers would not even revalidate).
        The server now sends Cache-Control: no-cache, so ordinary edits take
@@ -133,9 +133,12 @@
 
     <p id="join-status" class="status" role="status" aria-live="polite"></p>
 
-    <p class="install-hint" id="install-hint">
-      tip: tap ⋮ then <strong>Add to Home screen</strong> — then it opens with no
-      browser bar at all 💜
+    <button type="button" id="install-btn" class="install-btn hidden">
+      <span class="ico">🏠</span><span>add us to your home screen</span>
+    </button>
+    <p class="install-fallback hidden" id="install-fallback">
+      tap <strong>⋮</strong> then <strong>Add to Home screen</strong> — then it
+      opens with no browser bar at all 💗
     </p>
   </div>
 </section>
@@ -152,7 +155,7 @@
   <!-- Local preview: its own capture stream, so it costs zero network bytes. -->
   <video id="local-video" playsinline autoplay muted></video>
 
-  <button id="unmute-overlay" class="overlay-btn hidden">tap to hear me 💜</button>
+  <button id="unmute-overlay" class="overlay-btn hidden">tap to hear me 💗</button>
 
   <div id="call-status" class="call-status">
     <svg class="spin-bloom" viewBox="-50 -50 100 100" aria-hidden="true">

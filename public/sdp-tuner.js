@@ -242,27 +242,28 @@
         removedVideoFec += removeCodec(section, 'flexfec-03');
         removedVideoFec += removeCodec(section, 'red');
 
-        // Hard transport ceiling for video, a little above the governor's own
-        // maximum so it still has room to manoeuvre underneath. Without this the
+        // Hard transport ceiling for video, above the governor's own maximum so
+        // it still has room to manoeuvre underneath. Without this the
         // congestion controller's probing padding blows the data budget while
         // the governor, seeing the bytes, starves the encoder for nothing.
+        // The 1.5x (not 1.25x) headroom leaves room for RTX retransmission
+        // traffic too, now that RTX is kept by default — too tight a ceiling
+        // here would make the encoder and the repair traffic compete for the
+        // same few kbps.
         // Skipped rather than fatal if no range was supplied — a missing config
         // field must not break negotiation outright.
         if (cfg.videoKbps && typeof cfg.videoKbps.max === 'number') {
-          setBandwidth(section, Math.round(cfg.videoKbps.max * 1.25));
+          setBandwidth(section, Math.round(cfg.videoKbps.max * 1.5));
         }
 
-        // ── Drop retransmission (ON by default) ──
-        // Chrome uses RTX packets as the vehicle for congestion-probe padding.
-        // Measured back-to-back on identical content, removing rtx cut total
-        // upload from 96.9 kbps to 37.4 kbps — the padding, not the picture, was
-        // the dominant cost.
-        //
-        // The tradeoff is real: without rtx a lost video packet is not
-        // retransmitted, so the picture smears until the next keyframe instead
-        // of being repaired. Audio is unaffected — Opus in-band FEC handles its
-        // own losses. For a data-capped call this is the right default, but
-        // ?rtx=1 restores it if loss hurts more than the bytes are worth.
+        // ── Drop retransmission (opt-in only, via cfg.dropRtx) ──
+        // Chrome uses RTX packets as a vehicle for congestion-probe padding, so
+        // on an uncongested/lossless path (e.g. loopback testing) dropping RTX
+        // can cut upload sharply. But on a real, lossy mobile link RTX is what
+        // repairs a dropped packet — without it the picture smears and blocks
+        // until the next keyframe instead of recovering in place. That tradeoff
+        // is not worth it by default; this is opt-in for anyone deliberately
+        // re-testing the more aggressive data-saving mode.
         if (cfg.dropRtx) {
           removedRtx += removeCodec(section, 'rtx');
         }

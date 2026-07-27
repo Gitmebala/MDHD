@@ -1,4 +1,4 @@
-# us 💜
+# us 💗
 
 A private video call for exactly two people, built around one hard requirement:
 **it must not eat your mobile data.** Target is 30 MB/hour total, at 480p / 15fps,
@@ -13,17 +13,23 @@ your video never passes through it.
 
 | | her phone (default) | your phone |
 |---|---|---|
-| look | soft lilac, bouquet, drifting petals | same, plus instruments |
-| copy | "hi baby", "type the room name here babyy", "good girl 💜" | plain and technical |
+| look | soft lilac, bouquet, drifting petals, glass tiles | same, plus instruments |
+| copy | "Heyy babyy", "type the room name here babyy", "good girl 💗" | plain and technical |
 | numbers | none at all | full data meter |
 | budget control | none — follows yours | preset dropdown, pushes to her phone |
+
+Each side calls the other by name rather than a generic pronoun — her button
+says **"call Sunstone"**, yours says **"call Moonstone"**. Change the actual
+names in `PET_NAME` near the top of [`public/app.js`](public/app.js) if you
+want different ones; the rest of the copy pulls from that one place.
 
 **To make a phone the host:** open it once with `?me=1` — for example
 `https://your-app.onrender.com/?me=1`. The role is remembered in that device's
 local storage, so you only do it once. If you ever need to change it without
 editing the URL, **triple-tap the bouquet** on the join screen.
 
-She just opens `https://your-app.onrender.com/?room=ourroom` and taps **call him**.
+She just opens `https://your-app.onrender.com/?room=ourroom` and taps **call
+Sunstone**.
 
 > One gotcha: the role lives in `localStorage`, which is per-device *and*
 > per-browser. If you ever open her plain link on your own phone it stays host
@@ -36,11 +42,14 @@ She just opens `https://your-app.onrender.com/?room=ourroom` and taps **call him
 
 Three mechanisms, because no single one covers everything:
 
-1. **Add to Home screen** — the real fix. `manifest.json` declares
-   `display: standalone`, so once installed the app launches with no URL bar and
-   no tab strip, permanently. The join screen shows her how, and the hint
-   disappears once it is installed.
-2. **Fullscreen API** — requested the instant she taps "call him" (it only works
+1. **Add to Home screen** — the real fix, and a real button now (not just
+   instructions). `manifest.json` declares `display: standalone`, so once
+   installed the app launches with no URL bar and no tab strip, permanently.
+   On Android Chrome the button triggers the native install prompt directly
+   (via `beforeinstallprompt`); anywhere that doesn't support that (iOS Safari,
+   mostly), tapping it instead reveals the manual "tap ⋮ → Add to Home screen"
+   steps. It disappears once the app is actually running standalone.
+2. **Fullscreen API** — requested the instant she taps "call Sunstone" (it only works
    from inside a user gesture). Hides Chrome's UI immediately, even without
    installing. Exiting the call leaves fullscreen so she is never trapped.
 3. **Screen Wake Lock** — stops Android dimming and locking the screen mid-call.
@@ -82,14 +91,28 @@ Simulated over full-length calls (`npm test`):
 
 | Preset | still scene | mixed | constant motion | video cap range |
 |---|---|---|---|---|
-| Featherweight (20) | 19.9 MB/hr | 19.9 | 20.0 | 8–19 kbps |
+| Featherweight (20) | 19.9 MB/hr | 19.9 | 21.5¹ | 10–22 kbps |
 | **Saver (30)** ← default | **29.7 MB/hr** | **29.8** | **30.0** | 18–42 kbps |
-| Balanced (45) | 42.8 MB/hr | 44.7 | 45.0 | 33–70 kbps |
-| Sharp (90) | 81.9 MB/hr | 89.2 | 90.1 | 79–160 kbps |
+| Balanced (45) | 44.4 MB/hr | 44.7 | 45.0 | 33–75 kbps |
+| Sharp (90) | 85.6 MB/hr | 89.2 | 90.1 | 79–170 kbps |
 
-The video cap moves *opposite* to scene activity: on a static shot it opens to
-42 kbps (the encoder undershoots anyway), under constant motion it clamps to
-~18 kbps. That averaging is what makes 480p viable at this data rate.
+¹ Featherweight's floor was raised (see below) to reduce real-world blur, and at
+its low 20 MB/hr budget that floor leaves less room for the governor to correct
+under *constant* motion — worst case it runs ~7% over. Saver and up stay on
+target because their budget has more slack relative to the floor. If you use
+Featherweight, expect the average to sit closer to 21-22 MB/hr than 20 during an
+energetic call.
+
+The video cap moves *opposite* to scene activity: on a static shot it opens up
+(the encoder undershoots anyway), under constant motion it clamps toward its
+floor. That averaging is what makes 480p viable at this data rate.
+
+**These ranges were widened once already**, after the first real-device call:
+the original Saver range (10–42 kbps) looked blurry and blocky in practice, for
+reasons explained in the RTX section below. The numbers above are the current,
+wider ranges (Saver now 14–55 kbps). The governor still closes the loop on the
+same `budgetMbPerHour` average — widening the range only changes how far it's
+allowed to swing above the floor for a cleaner picture, not the hourly target.
 
 ### Where the headroom comes from
 
@@ -99,7 +122,7 @@ The video cap moves *opposite* to scene activity: on a static shot it opens to
 | AV1 | 30–50% better than VP9 at these rates | CPU on older phones |
 | Opus DTX | **measured 0.1 kbps during silence** vs 12 talking | none worth mentioning |
 | `ptime=60` | 50 → **measured 5–11 packets/s**, saving ~10 kbps of header | +40 ms latency |
-| Drop RTX (default) | **measured 96.9 → 37.4 kbps** total upload | lost packets aren't repaired |
+| RTX (retransmission) kept | repairs lost video packets in place | costs bytes only when a packet is actually lost |
 | Strip Opus RED | audio can otherwise nearly double | in-band FEC covers most of it |
 | Strip video FEC | removes continuous redundancy | same |
 | `b=AS:` ceilings | bounds the congestion controller, not just the encoder | none |
@@ -108,47 +131,39 @@ The video cap moves *opposite* to scene activity: on a static shot it opens to
 
 ---
 
-## ⚠️ Padding: read this before your first real call
+## ⚠️ RTX and padding — the history here matters
 
-This is the one thing I could not verify for you, and it is the thing most likely
-to blow the budget.
+An earlier version of this app **dropped RTX (retransmission) by default**,
+based on a loopback measurement (two browser tabs on 127.0.0.1) that showed
+removing it cut total upload from 96.9 to 37.4 kbps on identical content.
 
-`setParameters({maxBitrate})` caps the **encoder**, not the **transport**.
-Chrome's congestion controller continuously probes for spare bandwidth by sending
-**padding** — filler bytes that cost you real money and carry no picture.
+**That default was wrong, and it has been reverted.** On a real mobile
+connection there is real packet loss, and RTX is exactly what repairs a lost
+video packet in place. Without it, a dropped packet isn't recovered until the
+next keyframe — which is the blurry, blocky, laggy picture reported on an
+actual call. The loopback measurement wasn't wrong, it just measured the wrong
+thing: on a lossless connection there was nothing for RTX to repair, so all it
+was doing was carrying Chrome's congestion-probe padding. On a lossy one, it's
+doing its real job.
 
-Measured here on a loopback connection, at the Saver preset:
+**RTX is now kept by default.** If you deliberately want to retest the more
+aggressive, blur-prone mode, add `?nortx=1` to the URL — it is opt-in now, not
+the default.
 
-| | video payload | header + padding | total upload |
-|---|---|---|---|
-| RTX kept | 14.8 kbps | 61.4 kbps | 96.9 kbps |
-| **RTX dropped (now default)** | 5.5 kbps | 16.4 kbps | **37.4 kbps** |
+`setParameters({maxBitrate})` still only caps the **encoder**, not the
+**transport** — Chrome's congestion controller can still pad beyond that cap
+while probing for spare bandwidth. The meter reports this directly: if its note
+says something like *"72% of upload is padding/headers"* during a real call,
+that's what's happening, and:
 
-Chrome uses RTX packets as its padding vehicle, so dropping RTX cut total upload
-by 61%. That is why `?rtx=1` is now needed to *restore* retransmission rather than
-to disable it.
-
-**The honest caveat:** those measurements are from two browser tabs talking over
-127.0.0.1. On loopback the bandwidth estimator sees zero loss, zero jitter and
-effectively infinite capacity, so it probes upward forever. On real 4G there is
-finite capacity and genuine RTT and loss signals, so it converges and padding
-should be far smaller. **The loopback numbers do not transfer, in either
-direction.** I could not measure a real mobile path from here.
-
-So the meter now reports it directly. If the note says something like
-*"72% of upload is padding/headers"* during a real call on mobile data, that is
-the problem, and:
-
-- padding high **and** you are on `?rtx=1` → drop the `?rtx=1`, it is the default
-  for a reason;
-- padding high on the default already → drop to the Featherweight preset, which
-  lowers the `b=AS:` ceiling the controller is probing against;
+- if you're on `?nortx=1`, drop it — that's almost certainly why;
+- if padding is high on the default already, try the Featherweight preset,
+  which lowers the `b=AS:` ceiling the controller is probing against;
 - padding low (under ~30%) → the budget is behaving, ignore this section.
 
-The tradeoff of no RTX is real: a lost video packet is not retransmitted, so the
-picture smears until the next keyframe rather than being repaired. Audio is
-unaffected — Opus in-band FEC handles its own losses. If her picture looks torn
-rather than merely soft, try `?rtx=1` and accept more data.
+The `b=AS:` ceiling itself was also loosened (from 1.25× to 1.5× the video
+cap) so RTX retransmission traffic has room to breathe rather than competing
+with the encoder for the same few kbps.
 
 ---
 
@@ -233,6 +248,11 @@ Audio stays consistently good — Opus at 12 kbps mono wideband is clear for spe
 - **💔** end call.
 - Preset dropdown (yours only) changes live and pushes the budget to her phone.
 - Tap the meter to collapse it.
+- **Drag your own preview anywhere.** Press and drag the small self-view; it
+  can be pulled almost entirely off any edge of the screen (a ~28px sliver
+  always stays put so you can find it again) and dragged back just as easily.
+  Position isn't saved between calls — it starts in the default corner each
+  time.
 
 ---
 
