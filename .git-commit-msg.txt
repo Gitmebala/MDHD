@@ -1,24 +1,44 @@
-Add tap-to-swap video views; fix camera orientation vs WhatsApp
+Fix calls getting stuck on "reconnecting" after any network blip
 
-Tap-to-swap: whichever video is currently the small pip can be tapped (as
-opposed to dragged) to swap places with the full-screen one. Implemented by
-splitting the old id-based CSS (#local-video/#remote-video) into two SIZE
-classes, .video-big and .video-pip, that get toggled between the two <video>
-elements on tap -- while the self-view mirror stays pinned to #local-video by
-id, so your own camera keeps looking like a mirror regardless of which size
-it's currently displayed at. Tap-vs-drag is disambiguated by total pointer
-movement between pointerdown and pointerup (under 8px counts as a tap).
-Every new call resets to the default layout (them big, you small).
+Root cause: joinCall() emitted 'join' exactly once, right after creating the
+socket. Socket.IO auto-reconnects after a network blip (WiFi<->cell handoff,
+weak signal, backgrounding) on its own, but the server treats that reconnect
+as a brand-new session and had already evicted the client from the room the
+instant the old transport dropped. The client never re-emitted 'join' after
+reconnecting, so it was stuck outside the room forever while showing
+"reconnecting" with nothing actually happening -- this is very likely what
+was happening on a real call tonight, since it is a routine mobile-network
+event, not a rare one.
 
-Camera orientation fix: getUserMedia's width/height are absolute, not relative
-to how the phone is held. The existing code always requested a fixed 640x480
-(landscape) frame regardless of device orientation, which for a portrait-held
-phone -- the normal way to hold it for a call -- forces either a hard crop to
-fit the portrait preview or a picture that looks visibly different from apps
-that request dimensions matching how the phone is actually held. New
-videoCaptureConstraints() checks the viewport and swaps ideal width/height
-when portrait. This does not change the data budget: scaleResolutionDownBy
-already uses Math.min(width,height) as the 480p reference regardless of
-orientation.
+Fix, in two parts (both needed -- confirmed by testing, see below):
+
+1. Move the 'join' emit into the socket's 'connect' handler, which fires on
+   both the very first connection and every reconnect, instead of emitting it
+   once from joinCall(). state.room is already set before the socket exists,
+   so this is safe.
+
+2. On 'disconnect', unconditionally tear down our own RTCPeerConnection
+   instead of only doing so if it looked unhealthy. The server always tells
+   our partner "this peer left" the instant our socket drops (see
+   server.js), which makes THEM unconditionally rebuild their connection from
+   scratch on our rejoin. Initially this teardown was conditional on our own
+   pc's health, which was too clever: end-to-end testing (force-closing one
+   side's socket mid-call, twice, before and after this fix) reproduced a
+   concrete failure -- the side that kept its still-"connected" pc received
+   the other side's fresh rebuilt offer and threw "InvalidAccessError:
+   the order of m-lines in subsequent offer doesn't match order from
+   previous offer/answer", because a freshly built RTCPeerConnection's
+   transceiver order does not necessarily match an old, still-alive one's.
+   Tearing down and rebuilding unconditionally on both sides keeps them in
+   lockstep. Confirmed working after this change: forced the same socket
+   drop mid-call, both sides tore down, rejoined, and reconnected cleanly
+   with live video within seconds.
+
+Also investigated adding a TURN relay as a possible fix for NAT traversal
+failures, since that was the working hypothesis before the above was found.
+Tested four public TURN services (Open Relay, relay.metered.ca, viagenie,
+freestun) against the live app -- all four are dead or unreachable right now,
+so none were added; shipping an iceServers entry that does not actually work
+would be worse than not having one. Documented in the README instead.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

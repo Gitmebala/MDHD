@@ -299,12 +299,27 @@ verified from a development machine.
 
 ---
 
+## If a call gets stuck on "hold on babyy, one sec…"
+
+That text means the signaling socket dropped and reconnected — routine on
+mobile data (WiFi↔cell handoff, a moment of weak signal, the app being
+backgrounded). The app rejoins automatically and rebuilds the connection from
+scratch on both ends; that should take a few seconds. **If it never clears,**
+it means a fresh rejoin genuinely can't find a working path between the two of
+you — most likely one or both of you is behind a NAT that plain STUN can't
+punch through, which is a real limitation documented below.
+
 ## TURN: not included
 
-Only Google's public STUN. If you consistently never connect, you are behind
-symmetric NAT on both ends and need a relay — but a relayed call **doubles the
-bytes** and wrecks the budget. If you get there, add credentials to `RTC_CONFIG`
-in [`public/app.js`](public/app.js) and drop a preset to compensate.
+Only Google's public STUN. If you consistently never connect at all — not even
+after the automatic rejoin above — you are behind symmetric NAT on both ends
+and need a relay. No free public TURN service could be found reachable at the
+time of writing (tried four well-known ones; all were down or misconfigured),
+so this isn't wired up. A relayed call also **doubles the bytes** and wrecks
+the budget. If you need one, get credentials from a real provider (Twilio,
+Cloudflare Calls, or a self-hosted coturn) and add them to `RTC_CONFIG` in
+[`public/app.js`](public/app.js), then drop a preset to compensate for the
+extra data.
 
 ---
 

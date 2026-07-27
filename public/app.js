@@ -1013,10 +1013,25 @@ async function logNegotiatedCodec() {
   const tx = codecNameOf(sample.out.video, sample.codecs);
   const rx = codecNameOf(sample.inb.video, sample.codecs);
   const atx = codecNameOf(sample.out.audio, sample.codecs);
+
+  // Which kind of ICE candidate pair actually won: 'host' (direct LAN),
+  // 'srflx' (STUN — the normal P2P case), or 'relay' (TURN engaged, because
+  // STUN alone could not find a path — see RTC_CONFIG for why that server is
+  // there and what it costs).
+  let pairType = 'unknown';
+  const report = await state.pc.getStats();
+  report.forEach((r) => {
+    if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) {
+      const local = report.get(r.localCandidateId);
+      pairType = local ? local.candidateType : pairType;
+    }
+  });
+
   console.log('════════ NEGOTIATION RESULT ════════');
   console.log(`  video send : ${tx || 'n/a'}`);
   console.log(`  video recv : ${rx || 'n/a'}`);
   console.log(`  audio      : ${atx || 'n/a'}`);
+  console.log(`  connection : ${pairType}` + (pairType === 'relay' ? ' (via TURN — see README)' : ''));
   console.log(`  IP overhead accounted at ${state.ipHeaderBytes} B/packet`);
   if (tx && !tx.startsWith('AV1')) {
     console.warn(`  ⚠ Not using AV1 (got ${tx}). The MB/hr budget still holds — ` +
@@ -1465,13 +1480,27 @@ async function joinCall() {
 
   state.socket = io({ transports: ['websocket', 'polling'] });
   wireSocket();
-  state.socket.emit('join', room);
+  // The initial join, and every rejoin after a network blip, both happen from
+  // inside the socket's 'connect' handler below — see the comment there for why.
 }
 
 function wireSocket() {
   const socket = state.socket;
 
-  socket.on('connect', () => console.log('[sig] connected', socket.id));
+  socket.on('connect', () => {
+    console.log('[sig] connected', socket.id);
+    // Socket.IO auto-reconnects after a network blip (WiFi<->cell handoff,
+    // brief signal loss, the app being backgrounded) — but the SERVER treats
+    // that reconnect as a brand-new session and has already evicted this
+    // client from the room (server.js's disconnect handler runs the instant
+    // the old transport drops). Without re-joining here, a transient hiccup
+    // — routine on mobile data, much more so than on a stable connection —
+    // leaves the client stuck outside the room forever, showing "reconnecting"
+    // while nothing is actually happening. Emitting 'join' from inside this
+    // handler covers BOTH the very first connection and every reconnect with
+    // one code path, since state.room is already set before the socket exists.
+    if (state.room) socket.emit('join', state.room);
+  });
 
   socket.on('joined', async ({ polite, peerPresent }) => {
     state.polite = polite;
@@ -1549,11 +1578,20 @@ function wireSocket() {
 
   socket.on('disconnect', (reason) => {
     console.warn('[sig] signaling disconnected:', reason);
-    // Media is P2P, so an established call SURVIVES loss of the signaling
-    // socket. We only lose the ability to renegotiate until it reconnects.
-    if (state.pc?.connectionState !== 'connected') {
-      setCallStatus(T.reconnecting);
-    }
+    // Tear down unconditionally, even if our own pc still looks healthy at
+    // this exact instant. The SERVER always treats a socket disconnect as
+    // "this peer left the room" and tells our partner so (see server.js),
+    // which makes THEM unconditionally tear down and rebuild their
+    // RTCPeerConnection from scratch the moment we rejoin. If we kept our own
+    // pc around just because it happened to still be 'connected' when the
+    // socket dropped, the two sides end up with mismatched SDP structures —
+    // confirmed in testing as a real failure: a fresh offer's m-line order
+    // does not match our old answer's, and setRemoteDescription throws
+    // InvalidAccessError, leaving the call stuck in "reconnecting" forever.
+    // Staying in lockstep with what the other side is about to do means
+    // always rebuilding here too.
+    teardownPeerConnection();
+    setCallStatus(T.reconnecting);
   });
 }
 
