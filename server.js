@@ -48,6 +48,20 @@ app.use(express.static(path.join(__dirname, 'public'), {
 app.get('/healthz', (_req, res) => res.type('text').send('ok'));
 
 /**
+ * Serve the app shell explicitly at "/".
+ *
+ * Do not rely on express.static's implicit directory-index lookup: in
+ * production on Render it served /index.html and /style.css correctly but
+ * returned 404 for "/", while the same code served "/" fine locally. Being
+ * explicit costs one route and removes a whole class of environment-dependent
+ * behaviour.
+ */
+app.get('/', (_req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+/**
  * roomName -> Set<socketId>
  * Socket.IO already tracks rooms internally, but keeping our own map makes the
  * "max 2" check explicit and easy to reason about.
