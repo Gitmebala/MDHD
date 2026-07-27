@@ -240,6 +240,18 @@ At Saver the video budget averages ~18–25 kbps.
 
 Audio stays consistently good — Opus at 12 kbps mono wideband is clear for speech.
 
+**Camera orientation.** `getUserMedia`'s width/height are absolute, not relative
+to how the phone is held. Requesting a fixed "640 wide × 480 tall" — a
+landscape frame — while the phone is held upright (the normal way to hold it
+for a call) can force the browser into either cropping a landscape buffer hard
+to fit the portrait preview, or handing back a picture that looks visibly off
+compared to apps that request dimensions matching the device's actual
+orientation. `videoCaptureConstraints()` in [`public/app.js`](public/app.js)
+now checks the viewport and swaps ideal width/height when portrait, so the
+capture request matches how the phone is actually being held. This does not
+touch the data budget — the encoder-side scaling math already treats the
+shorter side as "480p" regardless of orientation.
+
 ## Controls
 
 - **🎙️** mute. Saves little on its own; DTX already makes silence nearly free.
@@ -253,6 +265,13 @@ Audio stays consistently good — Opus at 12 kbps mono wideband is clear for spe
   always stays put so you can find it again) and dragged back just as easily.
   Position isn't saved between calls — it starts in the default corner each
   time.
+- **Tap the small preview to swap it full-screen.** A tap (not a drag) on
+  whichever video is currently small swaps it with the big one — tap your own
+  preview and you become the full-screen view, with the other person now the
+  small draggable one; tap again to swap back. Each call starts back at the
+  default (them big, you small). Your own preview stays mirrored like a
+  selfie regardless of which size it's currently showing at — only the size
+  swaps, never which feed is "yours".
 
 ---
 

@@ -149,11 +149,15 @@
 <section id="call-screen" class="screen hidden">
 
   <!-- playsinline is REQUIRED on mobile or the video jumps to the native
-       fullscreen player and we lose our own UI. -->
-  <video id="remote-video" playsinline autoplay></video>
+       fullscreen player and we lose our own UI. video-big/video-pip are the
+       swappable SIZE classes (tap the small one to swap which feed is which
+       size) — kept separate from the id-based rules below, which handle
+       things that must never swap: local-video is always mirrored like a
+       selfie regardless of which size class it currently wears. -->
+  <video id="remote-video" class="video-big" playsinline autoplay></video>
 
   <!-- Local preview: its own capture stream, so it costs zero network bytes. -->
-  <video id="local-video" playsinline autoplay muted></video>
+  <video id="local-video" class="video-pip" playsinline autoplay muted></video>
 
   <button id="unmute-overlay" class="overlay-btn hidden">tap to hear me 💗</button>
 

@@ -1,0 +1,24 @@
+Add tap-to-swap video views; fix camera orientation vs WhatsApp
+
+Tap-to-swap: whichever video is currently the small pip can be tapped (as
+opposed to dragged) to swap places with the full-screen one. Implemented by
+splitting the old id-based CSS (#local-video/#remote-video) into two SIZE
+classes, .video-big and .video-pip, that get toggled between the two <video>
+elements on tap -- while the self-view mirror stays pinned to #local-video by
+id, so your own camera keeps looking like a mirror regardless of which size
+it's currently displayed at. Tap-vs-drag is disambiguated by total pointer
+movement between pointerdown and pointerup (under 8px counts as a tap).
+Every new call resets to the default layout (them big, you small).
+
+Camera orientation fix: getUserMedia's width/height are absolute, not relative
+to how the phone is held. The existing code always requested a fixed 640x480
+(landscape) frame regardless of device orientation, which for a portrait-held
+phone -- the normal way to hold it for a call -- forces either a hard crop to
+fit the portrait preview or a picture that looks visibly different from apps
+that request dimensions matching how the phone is actually held. New
+videoCaptureConstraints() checks the viewport and swaps ideal width/height
+when portrait. This does not change the data budget: scaleResolutionDownBy
+already uses Math.min(width,height) as the 480p reference regardless of
+orientation.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

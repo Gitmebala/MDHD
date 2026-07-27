@@ -355,6 +355,29 @@ const tuneSdp = (sdp) =>
    3. MEDIA CAPTURE
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * Orientation-aware capture dimensions.
+ *
+ * getUserMedia's width/height are absolute, not relative to how the phone is
+ * held. Requesting a fixed "640 wide x 480 tall" LANDSCAPE frame while the
+ * phone is held upright — the near-universal way to hold it for a call —
+ * forces the browser to either crop a landscape buffer hard to fit our
+ * portrait preview box, or otherwise hand back a picture that looks visibly
+ * different from apps (WhatsApp, FaceTime) that request dimensions matching
+ * the device's actual orientation. Swapping ideal width/height when portrait
+ * fixes this at the capture source instead of fighting it with CSS.
+ *
+ * This does not change the data budget: the governor's scaleResolutionDownBy
+ * math already uses Math.min(width, height) as the "480p" reference, so it
+ * treats a 480x640 portrait frame exactly the same as a 640x480 landscape one.
+ */
+function videoCaptureConstraints(fps) {
+  const portrait = window.innerHeight >= window.innerWidth;
+  return portrait
+    ? { width: { ideal: 480, max: 720 }, height: { ideal: 640, max: 1280 }, frameRate: { ideal: fps, max: fps } }
+    : { width: { ideal: 640, max: 1280 }, height: { ideal: 480, max: 720 }, frameRate: { ideal: fps, max: fps } };
+}
+
 async function startLocalMedia() {
   const p = preset();
 
@@ -368,16 +391,9 @@ async function startLocalMedia() {
       // avoids resampling work and matches our Opus maxplaybackrate.
       sampleRate: 16000,
     },
-    video: {
-      facingMode: state.facingMode,
-      // Capture at 480p and never higher. Capturing 1080p then downscaling
-      // burns battery and gives the encoder noise to waste bits on.
-      width: { ideal: 640, max: 1280 },
-      height: { ideal: 480, max: 720 },
-      // Hard framerate ceiling at capture time: frames that are never captured
-      // can never be encoded.
-      frameRate: { ideal: p.fps, max: p.fps },
-    },
+    // Capture at 480p (short side) and never higher. Capturing 1080p then
+    // downscaling burns battery and gives the encoder noise to waste bits on.
+    video: { facingMode: state.facingMode, ...videoCaptureConstraints(p.fps) },
   };
 
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -1137,75 +1153,112 @@ function setupInstallPrompt() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   6d. DRAGGABLE LOCAL PREVIEW
+   6d. PIP INTERACTIONS — drag to reposition, tap to swap
 
-   Lets you drag your own preview anywhere on screen — including mostly off any
-   edge, so it is out of the way entirely — then drag it back. A sliver
-   (MIN_VISIBLE px) always stays on-screen so it can never be dragged somewhere
-   ungrabbable. Position resets to the default corner on reload; nothing is
-   persisted, since a call is short and the default corner is a fine start
-   every time.
+   Whichever video is currently the small "pip" can be dragged anywhere on
+   screen — including mostly off any edge, so it is out of the way entirely —
+   then dragged back. A sliver (MIN_VISIBLE px) always stays on-screen so it
+   can never end up somewhere ungrabbable.
+
+   A TAP instead of a drag (pointerdown -> pointerup with barely any movement)
+   swaps which feed is full-screen and which is the small pip. Tap your own
+   preview and you become the big view, with the other person now the small
+   one; tap again (now tapping whichever feed is the pip) to swap back. Both
+   video elements share the same listeners and each checks whether IT is
+   currently the pip before reacting, so nothing needs to be re-bound when a
+   swap happens.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function setupDraggablePreview() {
-  const node = el.localVideo;
+/** Swap which feed is full-screen and which is the small, draggable pip. */
+function toggleVideoSwap() {
+  for (const node of [el.remoteVideo, el.localVideo]) {
+    node.classList.toggle('video-big');
+    node.classList.toggle('video-pip');
+  }
+}
+
+/** Force the default layout: remote full-screen, local the small pip. */
+function resetVideoSwap() {
+  el.remoteVideo.classList.remove('video-pip');
+  el.remoteVideo.classList.add('video-big');
+  el.localVideo.classList.remove('video-big');
+  el.localVideo.classList.add('video-pip');
+}
+
+function setupPipInteractions() {
   const MIN_VISIBLE = 28;
-  let dragging = false;
-  let startX = 0, startY = 0, baseLeft = 0, baseTop = 0;
+  // Pointer movement under this, in px, is treated as a tap rather than a drag.
+  const TAP_MAX_MOVE = 8;
 
-  function clamp(left, top) {
-    const w = node.offsetWidth || 120, h = node.offsetHeight || 160;
-    return {
-      left: Math.min(window.innerWidth - MIN_VISIBLE, Math.max(-(w - MIN_VISIBLE), left)),
-      top: Math.min(window.innerHeight - MIN_VISIBLE, Math.max(-(h - MIN_VISIBLE), top)),
+  function attach(node) {
+    let dragging = false, moved = 0;
+    let startX = 0, startY = 0, baseLeft = 0, baseTop = 0;
+
+    function clamp(left, top) {
+      const w = node.offsetWidth || 120, h = node.offsetHeight || 160;
+      return {
+        left: Math.min(window.innerWidth - MIN_VISIBLE, Math.max(-(w - MIN_VISIBLE), left)),
+        top: Math.min(window.innerHeight - MIN_VISIBLE, Math.max(-(h - MIN_VISIBLE), top)),
+      };
+    }
+
+    // The CSS default positions the pip with top/right so it looks right with
+    // no JS. On the first drag we freeze that computed position into explicit
+    // left/top pixels so it can be moved freely without fighting the
+    // stylesheet. Each element remembers its own position independently, so
+    // swapping back later restores wherever this one was last left.
+    function switchToExplicitPosition() {
+      if (node.style.left) return;
+      const r = node.getBoundingClientRect();
+      node.style.left = `${r.left}px`;
+      node.style.top = `${r.top}px`;
+      node.style.right = 'auto';
+    }
+
+    node.addEventListener('pointerdown', (e) => {
+      if (!node.classList.contains('video-pip')) return;   // only the small one moves
+      switchToExplicitPosition();
+      dragging = true;
+      moved = 0;
+      node.setPointerCapture(e.pointerId);
+      node.classList.add('dragging');
+      startX = e.clientX;
+      startY = e.clientY;
+      baseLeft = parseFloat(node.style.left) || 0;
+      baseTop = parseFloat(node.style.top) || 0;
+    });
+
+    node.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      moved = Math.max(moved, Math.abs(dx), Math.abs(dy));
+      const { left, top } = clamp(baseLeft + dx, baseTop + dy);
+      node.style.left = `${left}px`;
+      node.style.top = `${top}px`;
+    });
+
+    const endDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      node.classList.remove('dragging');
+      try { node.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+      // Barely moved -> that was a tap, not a drag: swap big <-> pip.
+      if (moved < TAP_MAX_MOVE) toggleVideoSwap();
     };
+    node.addEventListener('pointerup', endDrag);
+    node.addEventListener('pointercancel', endDrag);
+
+    // Keep it reachable if the viewport changes (rotation, keyboard, etc).
+    window.addEventListener('resize', () => {
+      if (!node.style.left) return;
+      const { left, top } = clamp(parseFloat(node.style.left), parseFloat(node.style.top));
+      node.style.left = `${left}px`;
+      node.style.top = `${top}px`;
+    });
   }
 
-  // The CSS default positions it with top/right so it looks right with no JS.
-  // On the first drag we freeze that computed position into explicit
-  // left/top pixels so it can be moved freely without fighting the stylesheet.
-  function switchToExplicitPosition() {
-    if (node.style.left) return;
-    const r = node.getBoundingClientRect();
-    node.style.left = `${r.left}px`;
-    node.style.top = `${r.top}px`;
-    node.style.right = 'auto';
-  }
-
-  node.addEventListener('pointerdown', (e) => {
-    switchToExplicitPosition();
-    dragging = true;
-    node.setPointerCapture(e.pointerId);
-    node.classList.add('dragging');
-    startX = e.clientX;
-    startY = e.clientY;
-    baseLeft = parseFloat(node.style.left) || 0;
-    baseTop = parseFloat(node.style.top) || 0;
-  });
-
-  node.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const { left, top } = clamp(baseLeft + (e.clientX - startX), baseTop + (e.clientY - startY));
-    node.style.left = `${left}px`;
-    node.style.top = `${top}px`;
-  });
-
-  const endDrag = (e) => {
-    if (!dragging) return;
-    dragging = false;
-    node.classList.remove('dragging');
-    try { node.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-  };
-  node.addEventListener('pointerup', endDrag);
-  node.addEventListener('pointercancel', endDrag);
-
-  // Keep it reachable if the viewport changes (rotation, keyboard, etc).
-  window.addEventListener('resize', () => {
-    if (!node.style.left) return;
-    const { left, top } = clamp(parseFloat(node.style.left), parseFloat(node.style.top));
-    node.style.left = `${left}px`;
-    node.style.top = `${top}px`;
-  });
+  attach(el.localVideo);
+  attach(el.remoteVideo);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1344,12 +1397,7 @@ el.btnFlip.addEventListener('click', async () => {
   try {
     const old = state.localStream.getVideoTracks()[0];
     const fresh = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: state.facingMode,
-        width: { ideal: 640, max: 1280 },
-        height: { ideal: 480, max: 720 },
-        frameRate: { ideal: preset().fps, max: preset().fps },
-      },
+      video: { facingMode: state.facingMode, ...videoCaptureConstraints(preset().fps) },
     });
     const track = fresh.getVideoTracks()[0];
     track.contentHint = 'detail';
@@ -1511,6 +1559,7 @@ function wireSocket() {
 
 async function beginPeerConnection() {
   if (state.pc) return;
+  resetVideoSwap();   // every new call starts remote-big / local-pip
   createPeerConnection();
   await applyPreset(state.presetKey);
   startStatsLoop();
@@ -1621,7 +1670,7 @@ function applyRole(role) {
   populatePresetSelects();
   spawnPetals();
   setupInstallPrompt();
-  setupDraggablePreview();
+  setupPipInteractions();
 
   const params = new URLSearchParams(location.search);
   el.roomInput.value = params.get('room') || '';

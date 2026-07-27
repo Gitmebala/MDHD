@@ -293,7 +293,14 @@ button {
 
 #call-screen { z-index: 1; }
 
-#remote-video {
+/* .video-big / .video-pip are SIZE classes only, and they swap between the two
+   <video> elements when you tap the small one (see toggleVideoSwap in app.js).
+   Identity concerns that must never swap — the self-view mirror, the rear-
+   camera exception, the dimmed "camera off" state — stay on #local-video by
+   id further down, so whichever element is actually your own camera keeps
+   looking like a mirror even after you have tapped it to full-screen. */
+
+.video-big {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -302,7 +309,7 @@ button {
   background: #efe4f8;
 }
 
-#local-video {
+.video-pip {
   position: absolute;
   top: calc(var(--safe-t) + 14px);
   right: 14px;
@@ -315,23 +322,22 @@ button {
   background: var(--lilac-200);
   z-index: 4;
   box-shadow: var(--shadow-lift);
-  transform: scaleX(-1);          /* mirror the selfie preview only */
   transition: opacity 0.25s, box-shadow 0.15s;
-  /* Draggable: see setupDraggablePreview() in app.js. touch-action:none stops
-     the browser from treating the drag as a page scroll/gesture. */
+  /* Draggable + tappable: see setupPipInteractions() in app.js. touch-action:
+     none stops the browser from treating the drag as a page scroll/gesture. */
   touch-action: none;
   cursor: grab;
 }
-#local-video.rear { transform: none; }
-#local-video.off  { opacity: 0.3; }
-#local-video.dragging {
+.video-pip.dragging {
   cursor: grabbing;
   box-shadow: 0 18px 40px rgba(120, 80, 160, 0.32);
   transition: none;               /* track the finger with zero lag */
 }
 
-/* Host meter sits top-left, so nudge the preview down to clear it. */
-.role-host #local-video { top: calc(var(--safe-t) + 14px); }
+#local-video { transform: scaleX(-1); }   /* mirror the selfie preview only */
+#local-video.rear { transform: none; }
+#local-video.off  { opacity: 0.3; }
+
 
 .call-status {
   position: absolute;
@@ -583,7 +589,7 @@ button {
   .ctl .ico { font-size: 20px; }
   .controls { padding-top: 8px; }
   .preset-wrap { margin-bottom: 8px; }
-  #local-video { width: 19vw; }
+  .video-pip { width: 19vw; }
   .meter { width: min(46vw, 226px); }
   .bouquet { width: 96px; height: 92px; }
   .join-card { padding-top: 4px; }
